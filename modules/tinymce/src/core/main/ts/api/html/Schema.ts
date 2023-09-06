@@ -139,7 +139,7 @@ const Schema = (settings: SchemaSettings = {}): Schema => {
   );
   const selfClosingElementsMap = createLookupTable('self_closing_elements', 'colgroup dd dt li option p td tfoot th thead tr');
   const voidElementsMap = createLookupTable('void_elements', 'area base basefont br col frame hr img input isindex link ' +
-    'meta param embed source wbr track');
+    'meta param embed source wbr track svg');
   const boolAttrMap = createLookupTable('boolean_attributes', 'checked compact declare defer disabled ismap multiple nohref noresize ' +
     'noshade nowrap readonly selected autoplay loop controls allowfullscreen');
 

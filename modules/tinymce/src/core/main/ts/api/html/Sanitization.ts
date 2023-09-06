@@ -1,8 +1,9 @@
 import { Arr, Obj, Strings, Type } from '@ephox/katamari';
 import { Attribute, NodeTypes, Remove, Replication, SugarElement } from '@ephox/sugar';
-import createDompurify, { Config, DOMPurifyI, SanitizeElementHookEvent } from 'dompurify';
+import createDompurify, { Config, DOMPurifyI, SanitizeElementHookEvent, SanitizeAttributeHookEvent } from 'dompurify';
 
 import * as NodeType from '../../dom/NodeType';
+import * as Namespace from '../../html/Namespace';
 import Tools from '../util/Tools';
 import * as URI from '../util/URI';
 import { DomParserSettings } from './DomParser';
@@ -16,7 +17,7 @@ const filteredUrlAttrs = Tools.makeMap('src,href,data,background,action,formacti
 const internalElementAttr = 'data-mce-type';
 
 let uid = 0;
-const processNode = (node: Node, settings: DomParserSettings, schema: Schema, evt?: SanitizeElementHookEvent): void => {
+const processNode = (node: Node, settings: DomParserSettings, schema: Schema, scope: Namespace.NamespaceType, evt?: SanitizeElementHookEvent): void => {
   const validate = settings.validate;
   const specialElements = schema.getSpecialElements();
 
@@ -51,7 +52,7 @@ const processNode = (node: Node, settings: DomParserSettings, schema: Schema, ev
 
   // Determine if the schema allows the element and either add it or remove it
   const rule = schema.getElementRule(lcTagName);
-  if (validate && !rule) {
+  if (validate && !rule && scope === 'html') {
     // If a special element is invalid, then remove the entire element instead of unwrapping
     if (Obj.has(specialElements, lcTagName)) {
       Remove.remove(element);
@@ -96,9 +97,15 @@ const processNode = (node: Node, settings: DomParserSettings, schema: Schema, ev
   }
 };
 
-const shouldKeepAttribute = (settings: DomParserSettings, schema: Schema, tagName: string, attrName: string, attrValue: string): boolean =>
-  !(attrName in filteredUrlAttrs && URI.isInvalidUri(settings, attrValue, tagName)) &&
-  (!settings.validate || schema.isValid(tagName, attrName) || Strings.startsWith(attrName, 'data-') || Strings.startsWith(attrName, 'aria-'));
+const shouldKeepAttribute = (settings: DomParserSettings, schema: Schema, scope: Namespace.NamespaceType, tagName: string, attrName: string, attrValue: string): boolean => {
+  // All attributes within non HTML namespaces elements are considered valid
+  if (scope !== 'html' && !Namespace.isNonHtmlElementRootName(tagName)) {
+    return true;
+  }
+
+  return !(attrName in filteredUrlAttrs && URI.isInvalidUri(settings, attrValue, tagName)) &&
+    (!settings.validate || schema.isValid(tagName, attrName) || Strings.startsWith(attrName, 'data-') || Strings.startsWith(attrName, 'aria-'));
+};
 
 const isRequiredAttributeOfInternalElement = (ele: Element, attrName: string): boolean =>
   ele.hasAttribute(internalElementAttr) && (attrName === 'id' || attrName === 'class' || attrName === 'style');
@@ -106,13 +113,13 @@ const isRequiredAttributeOfInternalElement = (ele: Element, attrName: string): b
 const isBooleanAttribute = (attrName: string, schema: Schema): boolean =>
   attrName in schema.getBoolAttrs();
 
-const filterAttributes = (ele: Element, settings: DomParserSettings, schema: Schema): void => {
+const filterAttributes = (ele: Element, settings: DomParserSettings, schema: Schema, scope: Namespace.NamespaceType): void => {
   const { attributes } = ele;
   for (let i = attributes.length - 1; i >= 0; i--) {
     const attr = attributes[i];
     const attrName = attr.name;
     const attrValue = attr.value;
-    if (!shouldKeepAttribute(settings, schema, ele.tagName.toLowerCase(), attrName, attrValue) && !isRequiredAttributeOfInternalElement(ele, attrName)) {
+    if (!shouldKeepAttribute(settings, schema, scope, ele.tagName.toLowerCase(), attrName, attrValue) && !isRequiredAttributeOfInternalElement(ele, attrName)) {
       ele.removeAttribute(attrName);
     } else if (isBooleanAttribute(attrName, schema)) {
       ele.setAttribute(attrName, attrName);
@@ -120,36 +127,40 @@ const filterAttributes = (ele: Element, settings: DomParserSettings, schema: Sch
   }
 };
 
-const setupPurify = (settings: DomParserSettings, schema: Schema): DOMPurifyI => {
+const processAttr = (ele: Element, settings: DomParserSettings, schema: Schema, scope: Namespace.NamespaceType, evt: SanitizeAttributeHookEvent): void => {
+  const tagName = ele.tagName.toLowerCase();
+  const { attrName, attrValue } = evt;
+
+  evt.keepAttr = shouldKeepAttribute(settings, schema, scope, tagName, attrName, attrValue);
+
+  if (evt.keepAttr) {
+    evt.allowedAttributes[attrName] = true;
+
+    if (isBooleanAttribute(attrName, schema)) {
+      evt.attrValue = attrName;
+    }
+
+    // We need to tell DOMPurify to forcibly keep the attribute if it's an SVG data URI and svg data URIs are allowed
+    if (settings.allow_svg_data_urls && Strings.startsWith(attrValue, 'data:image/svg+xml')) {
+      evt.forceKeepAttr = true;
+    }
+  // For internal elements always keep the attribute if the attribute name is id, class or style
+  } else if (isRequiredAttributeOfInternalElement(ele, attrName)) {
+    evt.forceKeepAttr = true;
+  }
+};
+
+const setupPurify = (settings: DomParserSettings, schema: Schema, namespaceTracker: Namespace.NamespaceTracker): DOMPurifyI => {
   const purify = createDompurify();
 
   // We use this to add new tags to the allow-list as we parse, if we notice that a tag has been banned but it's still in the schema
   purify.addHook('uponSanitizeElement', (ele, evt) => {
-    processNode(ele, settings, schema, evt);
+    processNode(ele, settings, schema, namespaceTracker.track(ele), evt);
   });
 
   // Let's do the same thing for attributes
   purify.addHook('uponSanitizeAttribute', (ele, evt) => {
-    const tagName = ele.tagName.toLowerCase();
-    const { attrName, attrValue } = evt;
-
-    evt.keepAttr = shouldKeepAttribute(settings, schema, tagName, attrName, attrValue);
-
-    if (evt.keepAttr) {
-      evt.allowedAttributes[attrName] = true;
-
-      if (isBooleanAttribute(attrName, schema)) {
-        evt.attrValue = attrName;
-      }
-
-      // We need to tell DOMPurify to forcibly keep the attribute if it's an SVG data URI and svg data URIs are allowed
-      if (settings.allow_svg_data_urls && Strings.startsWith(attrValue, 'data:image/svg+xml')) {
-        evt.forceKeepAttr = true;
-      }
-    // For internal elements always keep the attribute if the attribute name is id, class or style
-    } else if (isRequiredAttributeOfInternalElement(ele, attrName)) {
-      evt.forceKeepAttr = true;
-    }
+    processAttr(ele, settings, schema, namespaceTracker.current(), evt);
   });
 
   return purify;
@@ -165,10 +176,7 @@ const getPurifyConfig = (settings: DomParserSettings, mimeType: string): Config 
     ALLOWED_TAGS: [ '#comment', '#cdata-section', 'body' ],
     ALLOWED_ATTR: []
   };
-  const config = {
-    USE_PROFILES: { svg: true },
-    ...basePurifyConfig
-  };
+  const config = { ...basePurifyConfig };
 
   // Set the relevant parser mimetype
   config.PARSER_MEDIA_TYPE = mimeType;
@@ -185,13 +193,14 @@ const getPurifyConfig = (settings: DomParserSettings, mimeType: string): Config 
 };
 
 const getSanitizer = (settings: DomParserSettings, schema: Schema): Sanitizer => {
+  const namespaceTracker = Namespace.createNamespaceTracker();
+
   if (settings.sanitize) {
-    const purify = setupPurify(settings, schema);
+    const purify = setupPurify(settings, schema, namespaceTracker);
     return (body, mimeType) => {
-      console.log(body.innerHTML);
       purify.sanitize(body, getPurifyConfig(settings, mimeType));
-      console.log(body.innerHTML);
       purify.removed = [];
+      namespaceTracker.reset();
     };
   } else {
     return (body, _) => {
@@ -199,11 +208,15 @@ const getSanitizer = (settings: DomParserSettings, schema: Schema): Sanitizer =>
       const nodeIterator = document.createNodeIterator(body, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_COMMENT | NodeFilter.SHOW_TEXT);
       let node;
       while ((node = nodeIterator.nextNode())) {
-        processNode(node, settings, schema);
+        const currentScope = namespaceTracker.track(node);
+
+        processNode(node, settings, schema, currentScope);
         if (NodeType.isElement(node)) {
-          filterAttributes(node, settings, schema);
+          filterAttributes(node, settings, schema, currentScope);
         }
       }
+
+      namespaceTracker.reset();
     };
   }
 };

@@ -1,3 +1,4 @@
+import * as Namespace from '../../html/Namespace';
 import AstNode, { Attributes } from './Node';
 import Schema from './Schema';
 import Writer, { WriterSettings } from './Writer';
@@ -117,22 +118,27 @@ const HtmlSerializer = (settings: HtmlSerializerSettings = {}, schema: Schema = 
 
         writer.start(name, attrs, isEmpty);
 
-        if (!isEmpty) {
-          let child = node.firstChild;
-          if (child) {
-            // Pre and textarea elements treat the first newline character as optional and will omit it. As such, if the content starts
-            // with a newline we need to add in an additional newline to prevent the current newline in the value being treated as optional
-            // See https://html.spec.whatwg.org/multipage/syntax.html#element-restrictions
-            if ((name === 'pre' || name === 'textarea') && child.type === 3 && child.value?.[0] === '\n') {
-              writer.text('\n', true);
+        if (Namespace.isNonHtmlElementRootName(name)) {
+          writer.text(node.value ?? '', true);
+          writer.end(name);
+        } else {
+          if (!isEmpty) {
+            let child = node.firstChild;
+            if (child) {
+              // Pre and textarea elements treat the first newline character as optional and will omit it. As such, if the content starts
+              // with a newline we need to add in an additional newline to prevent the current newline in the value being treated as optional
+              // See https://html.spec.whatwg.org/multipage/syntax.html#element-restrictions
+              if ((name === 'pre' || name === 'textarea') && child.type === 3 && child.value?.[0] === '\n') {
+                writer.text('\n', true);
+              }
+
+              do {
+                walk(child);
+              } while ((child = child.next));
             }
 
-            do {
-              walk(child);
-            } while ((child = child.next));
+            writer.end(name);
           }
-
-          writer.end(name);
         }
       } else {
         handler(node);

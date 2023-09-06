@@ -6,6 +6,7 @@ import * as FilterNode from '../../html/FilterNode';
 import * as FilterRegistry from '../../html/FilterRegistry';
 import * as InvalidNodes from '../../html/InvalidNodes';
 import * as LegacyFilter from '../../html/LegacyFilter';
+import * as Namespace from '../../html/Namespace';
 import * as ParserFilters from '../../html/ParserFilters';
 import { isEmpty, isLineBreakNode, isPaddedWithNbsp, paddEmptyNode } from '../../html/ParserUtils';
 import { BlobCache } from '../file/BlobCache';
@@ -102,6 +103,10 @@ const transferChildren = (parent: AstNode, nativeParent: Node, specialElements: 
         const attr = attributes[ai];
         child.attr(attr.name, attr.value);
       }
+
+      if (Namespace.isNonHtmlElementRootName(child.name)) {
+        child.value = nativeChild.innerHTML;
+      }
     } else if (NodeType.isText(nativeChild)) {
       child.value = nativeChild.data;
       if (isSpecial) {
@@ -111,7 +116,10 @@ const transferChildren = (parent: AstNode, nativeParent: Node, specialElements: 
       child.value = nativeChild.data;
     }
 
-    transferChildren(child, nativeChild, specialElements);
+    if (!Namespace.isNonHtmlElementRootName(child.name)) {
+      transferChildren(child, nativeChild, specialElements);
+    }
+
     parent.append(child);
   }
 };
@@ -361,7 +369,7 @@ const DomParser = (settings: DomParserSettings = {}, schema = Schema()): DomPars
 
   const isWrappableNode = (blockElements: SchemaMap, node: AstNode) => {
     const isInternalElement = Type.isString(node.attr(internalElementAttr));
-    const isInlineElement = node.type === 1 && (!Obj.has(blockElements, node.name) && !TransparentElements.isTransparentAstBlock(schema, node));
+    const isInlineElement = node.type === 1 && (!Obj.has(blockElements, node.name) && !TransparentElements.isTransparentAstBlock(schema, node)) && !Namespace.isNonHtmlElementRootName(node.name);
 
     return node.type === 3 || (isInlineElement && !isInternalElement);
   };
