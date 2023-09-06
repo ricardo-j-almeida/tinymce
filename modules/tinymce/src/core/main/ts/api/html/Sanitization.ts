@@ -165,7 +165,10 @@ const getPurifyConfig = (settings: DomParserSettings, mimeType: string): Config 
     ALLOWED_TAGS: [ '#comment', '#cdata-section', 'body' ],
     ALLOWED_ATTR: []
   };
-  const config = { ...basePurifyConfig };
+  const config = {
+    USE_PROFILES: { svg: true },
+    ...basePurifyConfig
+  };
 
   // Set the relevant parser mimetype
   config.PARSER_MEDIA_TYPE = mimeType;
@@ -185,7 +188,9 @@ const getSanitizer = (settings: DomParserSettings, schema: Schema): Sanitizer =>
   if (settings.sanitize) {
     const purify = setupPurify(settings, schema);
     return (body, mimeType) => {
+      console.log(body.innerHTML);
       purify.sanitize(body, getPurifyConfig(settings, mimeType));
+      console.log(body.innerHTML);
       purify.removed = [];
     };
   } else {
