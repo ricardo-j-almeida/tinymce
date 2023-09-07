@@ -62,6 +62,8 @@ export default (): void => {
   const settings: RawEditorOptions = {
     skin_url: '../../../../js/tinymce/skins/ui/oxide',
     content_css: '../../../../js/tinymce/skins/content/default/content.css',
+    // xss_sanitization: false,
+    extended_valid_elements: 'svg[width|height],span[xlink:href]',
     content_langs: [
       { title: 'English (US)', code: 'en_us' },
       { title: 'Spanish', code: 'es' },

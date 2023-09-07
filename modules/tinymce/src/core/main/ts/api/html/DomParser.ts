@@ -86,7 +86,7 @@ interface DomParser {
 
 type WalkerCallback = (node: AstNode) => void;
 
-const transferChildren = (parent: AstNode, nativeParent: Node, specialElements: SchemaRegExpMap) => {
+const transferChildren = (parent: AstNode, nativeParent: Node, specialElements: SchemaRegExpMap, nsSanitizer: (el: Element) => void) => {
   const parentName = parent.name;
   // Exclude the special elements where the content is RCDATA as their content needs to be parsed instead of being left as plain text
   // See: https://html.spec.whatwg.org/multipage/parsing.html#parsing-html-fragments
@@ -105,6 +105,7 @@ const transferChildren = (parent: AstNode, nativeParent: Node, specialElements: 
       }
 
       if (Namespace.isNonHtmlElementRootName(child.name)) {
+        nsSanitizer(nativeChild);
         child.value = nativeChild.innerHTML;
       }
     } else if (NodeType.isText(nativeChild)) {
@@ -117,7 +118,7 @@ const transferChildren = (parent: AstNode, nativeParent: Node, specialElements: 
     }
 
     if (!Namespace.isNonHtmlElementRootName(child.name)) {
-      transferChildren(child, nativeChild, specialElements);
+      transferChildren(child, nativeChild, specialElements, nsSanitizer);
     }
 
     parent.append(child);
@@ -280,7 +281,7 @@ const DomParser = (settings: DomParserSettings = {}, schema = Schema()): DomPars
   };
 
   const parser = new DOMParser();
-  const sanitize = getSanitizer(defaultedSettings, schema);
+  const sanitizer = getSanitizer(defaultedSettings, schema);
 
   const parseAndSanitizeWithContext = (html: string, rootName: string, format: string = 'html'): Element => {
     const mimeType = format === 'xhtml' ? 'application/xhtml+xml' : 'text/html';
@@ -291,7 +292,7 @@ const DomParser = (settings: DomParserSettings = {}, schema = Schema()): DomPars
     // If parsing XHTML then the content must contain the xmlns declaration, see https://www.w3.org/TR/xhtml1/normative.html#strict
     const wrappedHtml = format === 'xhtml' ? `<html xmlns="http://www.w3.org/1999/xhtml"><head></head><body>${content}</body></html>` : `<body>${content}</body>`;
     const body = parser.parseFromString(wrappedHtml, mimeType).body;
-    sanitize(body, mimeType);
+    sanitizer.sanitizeHtmlElement(body, mimeType);
     return isSpecialRoot ? body.firstChild as Element : body;
   };
 
@@ -447,7 +448,7 @@ const DomParser = (settings: DomParserSettings = {}, schema = Schema()): DomPars
 
     // Create the AST representation
     const rootNode = new AstNode(rootName, 11);
-    transferChildren(rootNode, element, schema.getSpecialElements());
+    transferChildren(rootNode, element, schema.getSpecialElements(), sanitizer.sanitizeNamespaceElement);
 
     // This next line is needed to fix a memory leak in chrome and firefox.
     // For more information see TINY-9186

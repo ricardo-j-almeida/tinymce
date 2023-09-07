@@ -337,6 +337,9 @@ const Schema = (settings: SchemaSettings = {}): Schema => {
     });
   }
 
+  // Opt in is done with `extended_valid_elements: 'svg[width|height]'`
+  delete elements.svg;
+
   addCustomElements(settings.custom_elements);
   addValidChildren(settings.valid_children);
   addValidElements(settings.extended_valid_elements);

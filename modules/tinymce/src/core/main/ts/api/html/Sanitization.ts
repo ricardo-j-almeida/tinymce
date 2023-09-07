@@ -1,4 +1,4 @@
-import { Arr, Obj, Strings, Type } from '@ephox/katamari';
+import { Arr, Fun, Obj, Strings, Type } from '@ephox/katamari';
 import { Attribute, NodeTypes, Remove, Replication, SugarElement } from '@ephox/sugar';
 import createDompurify, { Config, DOMPurifyI, SanitizeElementHookEvent, SanitizeAttributeHookEvent } from 'dompurify';
 
@@ -10,7 +10,11 @@ import { DomParserSettings } from './DomParser';
 import Schema from './Schema';
 
 type MimeType = 'text/html' | 'application/xhtml+xml';
-type Sanitizer = (body: HTMLElement, mimeType: MimeType) => void;
+
+interface Sanitizer {
+  readonly sanitizeHtmlElement: (body: HTMLElement, mimeType: MimeType) => void;
+  readonly sanitizeNamespaceElement: (el: Element) => void;
+}
 
 // A list of attributes that should be filtered further based on the parser settings
 const filteredUrlAttrs = Tools.makeMap('src,href,data,background,action,formaction,poster,xlink:href');
@@ -50,9 +54,11 @@ const processNode = (node: Node, settings: DomParserSettings, schema: Schema, sc
     return;
   }
 
+  const validScope = scope === 'html' || schema.isValid(scope);
+
   // Determine if the schema allows the element and either add it or remove it
   const rule = schema.getElementRule(lcTagName);
-  if (validate && !rule && scope === 'html') {
+  if (validate && (!rule && !validScope)) {
     // If a special element is invalid, then remove the entire element instead of unwrapping
     if (Obj.has(specialElements, lcTagName)) {
       Remove.remove(element);
@@ -197,13 +203,39 @@ const getSanitizer = (settings: DomParserSettings, schema: Schema): Sanitizer =>
 
   if (settings.sanitize) {
     const purify = setupPurify(settings, schema, namespaceTracker);
-    return (body, mimeType) => {
+    const sanitizeHtmlElement = (body: HTMLElement, mimeType: MimeType) => {
+      // console.log(body.innerHTML);
       purify.sanitize(body, getPurifyConfig(settings, mimeType));
+      // console.log(body.innerHTML);
       purify.removed = [];
       namespaceTracker.reset();
     };
+
+    const sanitizeNamespaceElement = (node: Element): string => {
+      const xlinkAttrs = [ 'type', 'href', 'role', 'arcrole', 'title', 'show', 'actuate', 'label', 'from', 'to' ].map((name) => `xlink:${name}`);
+      const config: Config = {
+        IN_PLACE: true,
+        USE_PROFILES: {
+          html: true,
+          svg: true,
+          svgFilters: true
+        },
+        ALLOWED_ATTR: xlinkAttrs
+      };
+
+      // console.log(node.innerHTML);
+      createDompurify().sanitize(node, config);
+      // console.log(node.innerHTML);
+
+      return node.innerHTML;
+    };
+
+    return {
+      sanitizeHtmlElement,
+      sanitizeNamespaceElement
+    };
   } else {
-    return (body, _) => {
+    const sanitizeHtmlElement = (body: HTMLElement, _mimeTtpe: MimeType) => {
       // eslint-disable-next-line no-bitwise
       const nodeIterator = document.createNodeIterator(body, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_COMMENT | NodeFilter.SHOW_TEXT);
       let node;
@@ -217,6 +249,13 @@ const getSanitizer = (settings: DomParserSettings, schema: Schema): Sanitizer =>
       }
 
       namespaceTracker.reset();
+    };
+
+    const sanitizeNamespaceElement = Fun.noop;
+
+    return {
+      sanitizeHtmlElement,
+      sanitizeNamespaceElement
     };
   }
 };
