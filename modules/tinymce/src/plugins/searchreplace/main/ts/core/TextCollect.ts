@@ -49,7 +49,7 @@ const walk = (dom: DOMUtils, walkerFn: (shallow?: boolean) => Node | null | unde
   let next = skipStart ? walkerFn(false) : startNode;
   while (next) {
     // Walk over content editable or hidden elements
-    const isCefNode = isContentEditableFalse(dom, next);
+    const isCefNode = !dom.isEditable(next);
     if (isCefNode || isHidden(dom, next)) {
       const stopWalking = isCefNode ? callbacks.cef(next) : callbacks.boundary(next);
       if (stopWalking) {
