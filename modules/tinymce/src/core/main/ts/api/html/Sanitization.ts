@@ -54,11 +54,16 @@ const processNode = (node: Node, settings: DomParserSettings, schema: Schema, sc
     return;
   }
 
-  const validScope = scope === 'html' || schema.isValid(scope);
+  if (scope !== 'html' && schema.isValid(scope)) {
+    if (Type.isNonNullable(evt)) {
+      evt.allowedTags[lcTagName] = true;
+    }
+    return;
+  }
 
   // Determine if the schema allows the element and either add it or remove it
   const rule = schema.getElementRule(lcTagName);
-  if (validate && (!rule && !validScope)) {
+  if (validate && !rule) {
     // If a special element is invalid, then remove the entire element instead of unwrapping
     if (Obj.has(specialElements, lcTagName)) {
       Remove.remove(element);

@@ -139,12 +139,12 @@ const Schema = (settings: SchemaSettings = {}): Schema => {
   );
   const selfClosingElementsMap = createLookupTable('self_closing_elements', 'colgroup dd dt li option p td tfoot th thead tr');
   const voidElementsMap = createLookupTable('void_elements', 'area base basefont br col frame hr img input isindex link ' +
-    'meta param embed source wbr track svg');
+    'meta param embed source wbr track');
   const boolAttrMap = createLookupTable('boolean_attributes', 'checked compact declare defer disabled ismap multiple nohref noresize ' +
     'noshade nowrap readonly selected autoplay loop controls allowfullscreen');
 
   const nonEmptyOrMoveCaretBeforeOnEnter = 'td th iframe video audio object script code';
-  const nonEmptyElementsMap = createLookupTable('non_empty_elements', nonEmptyOrMoveCaretBeforeOnEnter + ' pre', voidElementsMap);
+  const nonEmptyElementsMap = createLookupTable('non_empty_elements', nonEmptyOrMoveCaretBeforeOnEnter + ' pre svg', voidElementsMap);
   const moveCaretBeforeOnEnterElementsMap = createLookupTable('move_caret_before_on_enter_elements', nonEmptyOrMoveCaretBeforeOnEnter + ' table', voidElementsMap);
 
   const textBlockElementsMap = createLookupTable('text_block_elements', 'h1 h2 h3 h4 h5 h6 p div address pre form ' +
