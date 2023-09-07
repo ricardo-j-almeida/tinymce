@@ -9,7 +9,7 @@ const closest = (target: SugarElement<Node>): Optional<SugarElement<HTMLElement>
 
 const isEditable = (element: SugarElement<HTMLElement>, assumeEditable: boolean = false): boolean => {
   if (SugarBody.inBody(element)) {
-    return element.dom.isContentEditable === true;
+    return element.dom.isContentEditable;
   } else {
     // Find the closest contenteditable element and check if it's editable
     return closest(element).fold(

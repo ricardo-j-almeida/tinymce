@@ -408,7 +408,7 @@ const DOMUtils = (doc: Document, settings: Partial<DOMUtilsSettings> = {}): DOMU
 
         if (originalValue !== val && settings.onSetAttrib) {
           settings.onSetAttrib({
-            attrElm: $elm.dom,
+            attrElm: $elm.dom as HTMLElement, // TODO: Fix lie
             attrName: name,
             attrValue: val
           });
@@ -464,7 +464,7 @@ const DOMUtils = (doc: Document, settings: Partial<DOMUtilsSettings> = {}): DOMU
   const getStyle = (elm: string | Element | null, name: string, computed?: boolean): string | undefined => {
     const $elm = get(elm);
 
-    if (Type.isNullable($elm) || !NodeType.isElement($elm)) {
+    if (Type.isNullable($elm) || !NodeType.isHTMLElement($elm)) {
       return undefined;
     }
 
@@ -478,6 +478,7 @@ const DOMUtils = (doc: Document, settings: Partial<DOMUtilsSettings> = {}): DOMU
         name = 'cssFloat';
       }
 
+      // TODO: Style exists on svg elements as well
       return $elm.style ? ($elm.style as Record<string, any>)[name] : undefined;
     }
   };
@@ -1094,7 +1095,7 @@ const DOMUtils = (doc: Document, settings: Partial<DOMUtilsSettings> = {}): DOMU
   const fire = (target: Target, name: string, evt?: {}) => events.dispatch(target, name, evt);
 
   const getContentEditable = (node: Node) => {
-    if (node && NodeType.isElement(node)) {
+    if (node && NodeType.isHTMLElement(node)) {
       // Check for fake content editable
       const contentEditable = node.getAttribute('data-mce-contenteditable');
       if (contentEditable && contentEditable !== 'inherit') {
@@ -1126,7 +1127,8 @@ const DOMUtils = (doc: Document, settings: Partial<DOMUtilsSettings> = {}): DOMU
   const isEditable = (node: Node | null | undefined) => {
     if (Type.isNonNullable(node)) {
       const scope = NodeType.isElement(node) ? node : node.parentElement;
-      return Type.isNonNullable(scope) && ContentEditable.isEditable(SugarElement.fromDom(scope));
+      // Treat all non HTML nodes an noneditable
+      return Type.isNonNullable(scope) && NodeType.isHTMLElement(scope) && ContentEditable.isEditable(SugarElement.fromDom(scope));
     } else {
       return false;
     }

@@ -31,8 +31,8 @@ const findElementSibling = (node: Node, siblingName: 'nextSibling' | 'previousSi
 
 const mergeSiblingsNodes = (editor: Editor, prev: Node | undefined, next: Node | undefined) => {
   const elementUtils = ElementUtils(editor);
-  const isPrevEditable = NodeType.isElement(prev) && FormatUtils.isEditable(prev);
-  const isNextEditable = NodeType.isElement(next) && FormatUtils.isEditable(next);
+  const isPrevEditable = NodeType.isHTMLElement(prev) && FormatUtils.isEditable(prev);
+  const isNextEditable = NodeType.isHTMLElement(next) && FormatUtils.isEditable(next);
 
   // Check if next/prev exists and that they are elements
   if (isPrevEditable && isNextEditable) {
