@@ -217,6 +217,7 @@ const getSanitizer = (settings: DomParserSettings, schema: Schema): Sanitizer =>
     };
 
     const sanitizeNamespaceElement = (node: Element): string => {
+      // xlink:href used to be the way to do links in SVG 1.x https://developer.mozilla.org/en-US/docs/Web/SVG/Attribute/xlink:href
       const xlinkAttrs = [ 'type', 'href', 'role', 'arcrole', 'title', 'show', 'actuate', 'label', 'from', 'to' ].map((name) => `xlink:${name}`);
       const config: Config = {
         IN_PLACE: true,
