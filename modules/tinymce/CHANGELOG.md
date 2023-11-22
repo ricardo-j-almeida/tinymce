@@ -6,6 +6,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Fixed
+- By clicking to the left or right of a non-editable `div` in Firefox we get 2 carets. #TINY-10314
+
 ## 6.8.0 - 2023-11-22
 
 ### Added
